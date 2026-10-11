@@ -1048,18 +1048,27 @@ bool markLibraryIndexDirty() {
   if (!Storage.exists(CACHE_DIR) && !Storage.mkdir(CACHE_DIR)) {
     LOG_ERR("LIBIDX", "cannot create cache directory for dirty marker");
     dirtyInMemory = true;  // not persisted: stay dirty until the next rebuild
-    return true;
+    return false;
   }
   HalFile marker;
   if (!Storage.openFileForWrite("LIBIDX", DIRTY_PATH, marker)) {
     LOG_ERR("LIBIDX", "cannot create dirty marker");
     dirtyInMemory = true;
-    return true;
+    return false;
+  }
+  if (!marker.close()) {
+    LOG_ERR("LIBIDX", "cannot close dirty marker");
+    dirtyInMemory = true;
+    return false;
   }
   return true;
 }
 
 bool isLibraryIndexDirty() { return dirtyInMemory || Storage.exists(DIRTY_PATH); }
+
+bool libraryIndexNeedsRebuild(LibraryIndexFile& index, const bool readMetadata) {
+  return isLibraryIndexDirty() || !index.open(libraryIndexPath()) || index.header().metadataEnabled != readMetadata;
+}
 
 bool buildLibraryIndex(const char* rootPath, BuildStats& stats, const bool readMetadata) {
   const uint32_t startMs = millis();

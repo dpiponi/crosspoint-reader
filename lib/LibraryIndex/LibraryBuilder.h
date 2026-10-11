@@ -26,6 +26,8 @@
 
 namespace library {
 
+class LibraryIndexFile;
+
 // Directory levels below the scan root that are walked. The measured corpus is
 // two deep (genre/author/book); the cap exists because a corrupted FAT can
 // contain a directory that contains itself — also measured on the same card —
@@ -74,5 +76,9 @@ const char* libraryIndexPath();
 // entry rebuilds it through the normal reconciliation path.
 bool markLibraryIndexDirty();
 bool isLibraryIndexDirty();
+
+// Opens the current index and reports whether the caller must rebuild it.
+// When false, `index` is open and matches the selected metadata mode.
+bool libraryIndexNeedsRebuild(LibraryIndexFile& index, bool readMetadata);
 
 }  // namespace library

@@ -12,6 +12,7 @@
 #include <Memory.h>
 #include <Utf8.h>
 #include <Xtc.h>
+#include <esp_random.h>
 
 #include <algorithm>
 #include <cstring>
@@ -28,7 +29,7 @@
 #include "fontIds.h"
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 4;  // File Browser, Library, File transfer, Settings
+  int count = 5;  // File Browser, Library, Random book, File transfer, Settings
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -72,12 +73,12 @@ void HomeActivity::fillCoverGridFromLibrary() {
   }
   auto& index = reader->index;
   auto& record = reader->record;
-  if (!index.open(library::libraryIndexPath())) {
+  const bool readMetadata = SETTINGS.libraryUseMetadata != 0;
+  if (library::libraryIndexNeedsRebuild(index, readMetadata)) {
     index.close();
     GUI.drawPopup(renderer, tr(STR_LIBRARY_REBUILDING));
     library::BuildStats stats;
-    if (!library::buildLibraryIndex("/", stats, SETTINGS.libraryUseMetadata != 0) ||
-        !index.open(library::libraryIndexPath())) {
+    if (!library::buildLibraryIndex("/", stats, readMetadata) || !index.open(library::libraryIndexPath())) {
       LOG_ERR("HOME", "Cannot populate cover grid from library");
       return;
     }
@@ -316,6 +317,9 @@ void HomeActivity::loop() {
       case HomeMenuItem::LIBRARY:
         onLibraryOpen();
         break;
+      case HomeMenuItem::RANDOM_BOOK:
+        onRandomBookOpen();
+        break;
       case HomeMenuItem::OPDS_BROWSER:  // the library slot
         hasPlugins ? onPluginsOpen() : onOpdsBrowserOpen();
         break;
@@ -325,7 +329,7 @@ void HomeActivity::loop() {
       case HomeMenuItem::SETTINGS_MENU:
         onSettingsOpen();
         break;
-      default:
+      case HomeMenuItem::NONE:
         break;
     }
   };
@@ -522,13 +526,13 @@ void HomeActivity::render(RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_FILE_TRANSFER),
-                                        tr(STR_SETTINGS_TITLE)};
-  std::vector<UIIcon> menuIcons = {Folder, Library, Transfer, Settings};
+  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_OPEN_RANDOM_BOOK),
+                                        tr(STR_FILE_TRANSFER), tr(STR_SETTINGS_TITLE)};
+  std::vector<UIIcon> menuIcons = {Folder, Library, Book, Transfer, Settings};
 
   if (hasLibrarySlot()) {
-    menuItems.insert(menuItems.begin() + 2, hasPlugins ? tr(STR_PLUGINS) : tr(STR_OPDS_BROWSER));
-    menuIcons.insert(menuIcons.begin() + 2, Plugins);
+    menuItems.insert(menuItems.begin() + 3, hasPlugins ? tr(STR_PLUGINS) : tr(STR_OPDS_BROWSER));
+    menuIcons.insert(menuIcons.begin() + 3, Plugins);
   }
 
   if (metrics.homeContinueReadingInMenu && !recentBooks.empty()) {
@@ -568,6 +572,53 @@ void HomeActivity::onSelectBook(const std::string& path) { activityManager.goToR
 void HomeActivity::onFileBrowserOpen() { activityManager.goToFileBrowser(); }
 
 void HomeActivity::onLibraryOpen() { activityManager.goToLibrary(); }
+
+void HomeActivity::onRandomBookOpen() {
+  // The index reader and its 128-byte record exceed the activity stack budget.
+  // This cold-path allocation lives only until the selected path reaches the reader.
+  struct LibraryReader {
+    library::LibraryIndexFile index;
+    library::ClixRecord record;
+  };
+  auto reader = makeUniqueNoThrow<LibraryReader>();
+  if (!reader) {
+    LOG_ERR("HOME", "OOM: random-book library index");
+    return;
+  }
+
+  std::string path;
+  {
+    // The rebuild writes the index and must not overlap the render task's SD-backed font reads.
+    RenderLock lock(*this);
+    auto& index = reader->index;
+    const bool readMetadata = SETTINGS.libraryUseMetadata != 0;
+    const bool rebuildNeeded = library::libraryIndexNeedsRebuild(index, readMetadata);
+    if (rebuildNeeded) {
+      index.close();
+      GUI.drawPopup(renderer, tr(STR_LIBRARY_REBUILDING));
+      library::BuildStats stats;
+      if (!library::buildLibraryIndex("/", stats, readMetadata) || !index.open(library::libraryIndexPath())) {
+        LOG_ERR("HOME", "cannot build library index for random book");
+        return;
+      }
+    }
+    if (index.bookCount() == 0) {
+      GUI.drawPopup(renderer, tr(STR_NO_FILES_FOUND));
+      return;
+    }
+
+    // Multiply-high maps the full 32-bit hardware-random range without modulo bias.
+    const uint16_t row = static_cast<uint16_t>((static_cast<uint64_t>(esp_random()) * index.bookCount()) >> 32);
+    const uint16_t ordinal = index.ordinalForRow(library::SortOrder::TitleAsc, row);
+    if (ordinal == 0xFFFF || !index.readRecord(ordinal, reader->record) || !index.readPath(reader->record, path)) {
+      LOG_ERR("HOME", "cannot resolve random library book");
+      return;
+    }
+    // The reader opens its own files; release the index first for single-reader SD implementations.
+    index.close();
+  }
+  onSelectBook(path);
+}
 
 void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 

@@ -91,8 +91,7 @@ void LibraryListActivity::onEnter() {
   // Rebuild when the index is missing, invalid, or was built with the other
   // metadata mode. Otherwise entering the screen stays instant.
   const bool readMetadata = SETTINGS.libraryUseMetadata != 0;
-  const bool rebuildNeeded = library::isLibraryIndexDirty() || !index.open(library::libraryIndexPath()) ||
-                             index.header().metadataEnabled != readMetadata;
+  const bool rebuildNeeded = library::libraryIndexNeedsRebuild(index, readMetadata);
   if (rebuildNeeded) {
     index.close();
     GUI.drawPopup(renderer, tr(STR_LIBRARY_REBUILDING));
