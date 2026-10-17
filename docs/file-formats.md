@@ -90,6 +90,12 @@ if (parsedSize != fileSize) {
 
 ## `section.bin`
 
+### Version 56
+
+Scaled images are clamped to at least one pixel in each dimension. Older
+completed and partial section caches rebuild automatically so they cannot retain
+a zero-sized image layout.
+
 ### Version 55
 
 Each TextBlock adds a uint16 `paragraphStartWord` after `textBytes`. It is the

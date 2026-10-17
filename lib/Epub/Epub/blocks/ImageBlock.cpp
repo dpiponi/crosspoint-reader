@@ -320,6 +320,11 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
   FontCacheManager* fcm = renderer.getFontCacheManager();
   if (fcm && fcm->isScanning()) return;
 
+  if (width <= 0 || height <= 0) {
+    LOG_ERR("IMG", "Skipping image with invalid layout size: %s (%dx%d)", imagePath.c_str(), width, height);
+    return;
+  }
+
   LOG_DBG("IMG", "Rendering image at %d,%d: %s (%dx%d)", x, y, imagePath.c_str(), width, height);
 
   const int screenWidth = renderer.getScreenWidth();

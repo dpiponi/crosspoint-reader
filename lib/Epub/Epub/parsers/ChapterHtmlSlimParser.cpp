@@ -1140,6 +1140,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
                   displayWidth = (int)(dims.width * scale);
                   displayHeight = (int)(dims.height * scale);
+                  if (displayWidth < 1) displayWidth = 1;
+                  if (displayHeight < 1) displayHeight = 1;
                   LOG_DBG("EHP", "Display size: %dx%d (scale %.2f)", displayWidth, displayHeight, scale);
                 }
 
