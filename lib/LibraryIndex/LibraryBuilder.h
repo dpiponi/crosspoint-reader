@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "LibraryFormat.h"
 
@@ -80,5 +81,9 @@ bool isLibraryIndexDirty();
 // Opens the current index and reports whether the caller must rebuild it.
 // When false, `index` is open and matches the selected metadata mode.
 bool libraryIndexNeedsRebuild(LibraryIndexFile& index, bool readMetadata);
+
+// Whether `path` (a full path or a bare name) passes the walk's name filter: a
+// book extension, and no hidden (dot-prefixed) folder or file name.
+bool isLibraryBookFile(std::string_view path);
 
 }  // namespace library
