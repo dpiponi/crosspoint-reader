@@ -528,7 +528,7 @@ void HomeActivity::render(RenderLock&&) {
   // Build menu items dynamically
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_OPEN_RANDOM_BOOK),
                                         tr(STR_FILE_TRANSFER), tr(STR_SETTINGS_TITLE)};
-  std::vector<UIIcon> menuIcons = {Folder, Library, Book, Transfer, Settings};
+  std::vector<UIIcon> menuIcons = {Folder, Library, Shuffle, Transfer, Settings};
 
   if (hasLibrarySlot()) {
     menuItems.insert(menuItems.begin() + 3, hasPlugins ? tr(STR_PLUGINS) : tr(STR_OPDS_BROWSER));

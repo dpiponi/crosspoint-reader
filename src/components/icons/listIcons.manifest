@@ -24,4 +24,5 @@ download = download
 bookmark = bookmark
 usb = usb
 refresh-cw = refresh-cw
+shuffle = shuffle
 checkbox-off = square
